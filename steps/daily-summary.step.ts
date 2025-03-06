@@ -5,7 +5,7 @@ export const config: CronConfig = {
   type: 'cron',
   name: 'Daily Email Summary',
   description: 'Generates and sends a daily summary of processed emails to Discord',
-  cron: '* * * * * *', // every minute
+  cron: '*/1 * * * *', // every minute
   emits: ['gmail.summaryGenerated'],
   flows: ['gmail-flow']
 };
