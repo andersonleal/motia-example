@@ -14,11 +14,7 @@
   "dependencies": {
     "@motiadev/core": "0.1.0-alpha.5  ",
     "@motiadev/workbench": "0.1.0-alpha.5",
-    "@radix-ui/react-icons": "^1.3.2",
-    "@radix-ui/react-select": "^2.1.6",
     "axios": "^1.6.7",
-    "google-auth-library": "^9.15.1",
-    "googleapis": "^129.0.0",
     "motia": "0.1.0-alpha.5",
     "react": "^19.0.0",
     "zod": "^3.24.2"

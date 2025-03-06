@@ -1,12 +1,10 @@
-import {EventConfig, StepHandler} from 'motia'
-import { GoogleService } from 'services/google.service';
-import {z} from 'zod'
-
-type Category = 'work' | 'personal' | 'spam' | 'promotional' | 'social' | 'other' | 'unknown';
-type Urgency = 'high' | 'medium' | 'low';
+import { EventConfig, StepHandler } from 'motia';
+import { z } from 'zod';
+import { GoogleService } from '../services/google.service';
 
 const inputSchema = z.object({
   messageId: z.string(),
+  threadId: z.string(),
   subject: z.string(),
   from: z.string(),
   category: z.object({
@@ -45,51 +43,11 @@ export const config: EventConfig<typeof inputSchema> = {
 }
 
 export const handler: StepHandler<typeof config> = async (input, {emit, logger}) => {
-  logger.info(`Organizing email: ${input.messageId} ${input.category} ${input.urgency}`)
+  logger.info(`Organizing email: ${input.messageId}`)
 
   try {
-    const labelMappings: Record<Category, string> = {
-      work: 'Work',
-      personal: 'Personal',
-      spam: 'Spam',
-      unknown: 'Unknown',
-      promotional: 'Promotional',
-      social: 'Social',
-      other: 'Other'
-    }
-
-    const urgencyLabels: Record<Urgency, string> = {
-      high: 'Urgent',
-      medium: 'Normal',
-      low: 'Low-Priority'
-    }
-
-    const labelsToApply: string[] = [];
-    const labelIds: string[] = [];
     const googleService = new GoogleService(logger);
-
-    async function processLabel(labelName: string): Promise<void> {
-      const label = await googleService.findOrCreateLabel(labelName);
-
-      logger.info(`Label ${labelName} created: ${label.id}`);
-
-      if (label.id) {
-        labelIds.push(label.id);
-        labelsToApply.push(labelName);
-      }
-    }
-
-    const categoryValue = input.category.category as Category;
-    const categoryLabel = labelMappings[categoryValue];
-    if (categoryLabel) {
-      await processLabel(categoryLabel);
-    }
-
-    const urgencyValue = input.urgency.urgency as Urgency;
-    const urgencyLabel = urgencyLabels[urgencyValue];
-    if (urgencyLabel) {
-      await processLabel(urgencyLabel);
-    }
+    const {labelsToApply, labelIds} = await googleService.updateLabels(input);
 
     if (labelIds.length > 0) {
       await googleService.modifyMessage(input.messageId, labelIds);

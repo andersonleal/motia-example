@@ -1,7 +1,6 @@
-import React, {useState} from 'react'
-import {ApiNodeProps, BaseHandle, Position} from "@motiadev/workbench";
+import { ApiNodeProps, BaseHandle, Position } from "@motiadev/workbench";
+import React, { useState } from 'react';
 
-// Sample email interface (you would typically use a shared interface)
 interface Email {
   id: string
   from: string
