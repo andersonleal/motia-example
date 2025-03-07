@@ -42,11 +42,11 @@ export const config: EventConfig<typeof inputSchema> = {
   flows: ['gmail-flow'],
 }
 
-export const handler: StepHandler<typeof config> = async (input, {emit, logger}) => {
+export const handler: StepHandler<typeof config> = async (input, {emit, logger, state}) => {
   logger.info(`Organizing email: ${input.messageId}`)
 
   try {
-    const googleService = new GoogleService(logger);
+    const googleService = new GoogleService(logger, state);
     const {labelsToApply, labelIds} = await googleService.updateLabels(input);
 
     if (labelIds.length > 0) {

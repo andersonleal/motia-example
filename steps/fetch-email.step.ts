@@ -1,56 +1,41 @@
 import {EventConfig, StepHandler} from 'motia'
-import { GoogleService } from '../services/google.service'
+import { EmailResponse, GoogleService } from '../services/google.service'
 import {z} from 'zod'
 
-const inputSchema = z.object({
+const schema = z.object({
   messageId: z.string(),
-  threadId: z.string(),
+  historyId: z.number(),
 })
 
-export const config: EventConfig<typeof inputSchema> = {
+export const config: EventConfig<typeof schema> = {
   type: 'event',
   name: 'Gmail Email Fetcher',
   description: 'Fetches email content from Gmail when triggered by an email received event',
   subscribes: ['gmail.email.received'],
   emits: ['gmail.email.fetched'],
-  input: inputSchema,
+  input: schema,
   flows: ['gmail-flow'],
 }
 
-export const handler: StepHandler<typeof config> = async (payload, {emit, logger}) => {
+export const handler: StepHandler<typeof config> = async (input, {emit, logger, state}) => {
   try {
+    const payload = schema.parse(input)
+
     logger.info(`Fetching email content: ${JSON.stringify(payload)}`)
 
-    const {messageId, threadId} = payload
-    const googleService = new GoogleService(logger);
-    const data = await googleService.getEmail(messageId)
+    const {messageId, historyId} = payload
+    const googleService = new GoogleService(logger, state);
+    const data: EmailResponse = await googleService.getEmail(historyId.toString())
 
-    logger.info(`Emitting fetched email: ${JSON.stringify(data)}`)
+    logger.info(`Emitting fetched email: ${JSON.stringify(data.subject)}`)
 
     await emit({
       topic: 'gmail.email.fetched',
-      data: {
-        ...data,
-        messageId,
-        threadId
-      }
+      data
     })
 
     logger.info(`Email fetch completed successfully: ${messageId}`)
   } catch (error) {
-    // Handle errors properly
-    logger.error('Error fetching email content', {
-      messageId: payload.messageId,
-      error: error instanceof Error ? error.message : String(error)
-    })
-
-    // Optionally emit an error event depending on your error handling strategy
-    await emit({
-      topic: 'gmail.email.fetchError',
-      data: {
-        messageId: payload.messageId,
-        error: error instanceof Error ? error.message : String(error)
-      }
-    })
+    logger.error(`Error fetching email content ${JSON.stringify(error)}`)
   }
 }

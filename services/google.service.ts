@@ -1,6 +1,8 @@
-import { Logger } from "@motiadev/core";
-import { emailMessages } from "./mock.messages";
+import { FlowContext, Logger } from "@motiadev/core";
+import { IEmail, ParseGmailApi } from 'gmail-api-parse-message-ts';
 
+import { google } from "googleapis";
+import { GoogleBaseService } from "./google-base.service";
 type Email = {
   category: {
     category: string;
@@ -17,10 +19,19 @@ type Email = {
   threadId: string;
 };
 
+export type EmailResponse = {
+  subject: string;
+  from: string;
+  messageId: string;
+  threadId: string;
+  snippet: string;
+  labelIds: string[];
+}
+
 type Category = 'work' | 'personal' | 'spam' | 'promotional' | 'social' | 'other' | 'unknown';
 type Urgency = 'high' | 'medium' | 'low';
 
-export class GoogleService {
+export class GoogleService extends GoogleBaseService {
   private readonly autoResponderName = 'Anderson Leal';
   private readonly  labelMappings: Record<Category, string> = {
     work: 'Work',
@@ -41,9 +52,9 @@ export class GoogleService {
   private labelsToApply: string[] = [];
   private labelIds: string[] = [];
 
-  constructor(private readonly logger: Logger) {
+  constructor(logger: Logger, state: FlowContext['state']) {
+    super(logger, state)
   }
-
 
   async processLabel(labelName: string): Promise<void> {
     const label = await this.findOrCreateLabel(labelName);
@@ -155,13 +166,53 @@ export class GoogleService {
     return response;
   };
 
-  async getEmail(messageId: string) {
-    return emailMessages[messageId] || {
+
+  async getEmail(historyId: string): Promise<EmailResponse> {
+    const tokens = await this.getTokens()
+
+    if (!tokens) {
+      throw new Error('No tokens found')  
+    }
+
+    const auth = await this.getAuth()
+
+    const gmail = google.gmail({version: 'v1', auth});
+
+    const history = await gmail.users.history.list({
+      userId: 'me',
+      startHistoryId: historyId,
+      historyTypes: ['messageAdded']
+    });
+
+    const historyRecord = history.data.history?.[0]?.messagesAdded?.[0];
+    const messageId = historyRecord?.message?.id;
+    if (!messageId) {
+      this.logger.info('No new messages found.');
+      throw new Error('No new messages found.');
+    }
+
+    const {data} = await gmail.users.messages.get({
+      userId: 'me',
+      id: messageId,
+      format: 'full'
+    });
+
+    const parse = new ParseGmailApi();
+    const email : IEmail = parse.parseMessage(data);
+
+
+    if(!email.subject) {
+      this.logger.info(`No subject found for email ${messageId}`);
+      throw new Error(`No subject found for email ${messageId}`);
+    }
+    
+    return {
+      subject: email.subject,
+      from: email.from.email,
       messageId,
-      subject: 'Message Not Found',
-      content: 'The requested message could not be found.',
-      from: 'system@company.com',
-      date: new Date().toISOString(),
+      threadId: email.threadId,
+      snippet: email.snippet,
+      labelIds: email.labelIds,
     };
   }
 
@@ -169,6 +220,7 @@ export class GoogleService {
     const responseText = this.generateResponse(email);
 
     if (!responseText) {
+      this.logger.info(`No auto-response generated for this email category ${email.category}`);
       throw new Error(`No auto-response generated for this email category ${email.category}`);
     }
 

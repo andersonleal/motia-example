@@ -12,20 +12,28 @@ export const Node: React.FC<ApiNodeProps> = ({data}) => {
   const [selectedMessage, setSelectedMessage] = useState(events[0]);
 
   const simulateEvent = (message = selectedMessage) => {
+    const old = {
+      message: {
+        data: 'eyJlbWFpbEFkZHJlc3MiOiJhbmRlcnNvbm9mbEBnbWFpbC5jb20iLCJoaXN0b3J5SWQiOjI4NTI4NDIyfQ==',
+        messageId: '13746275769122215',
+        message_id: '13746275769122215',
+        publishTime: '2025-03-07T13:15:32.62Z',
+        publish_time: '2025-03-07T13:15:32.62Z'
+      },
+      subscription: 'projects/motia-452722/subscriptions/email'
+    }
+    const lastMessage = {"message":{"data":"eyJlbWFpbEFkZHJlc3MiOiJhbmRlcnNvbm9mbEBnbWFpbC5jb20iLCJoaXN0b3J5SWQiOjI4NTMyODU4fQ==","messageId":"13571913348576422","publishTime":"2025-03-07T21:15:27.275Z"},"subscription":"projects/motia-452722/subscriptions/email"};
     fetch('/api/gmail-webhook', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        messageId: message.messageId,
-        threadId: message.messageId
-      })
+      body: JSON.stringify(lastMessage)
     }).catch((error) => {
       console.error('Error simulating event:', error)
     })
   }
-
+  
   const handleSelectMessage = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const messageId = e.target.value;
     const message = events.find(event => event.messageId === messageId) || events[0];
