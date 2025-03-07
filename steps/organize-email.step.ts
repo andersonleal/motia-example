@@ -1,6 +1,6 @@
 import { EventConfig, StepHandler } from 'motia';
 import { z } from 'zod';
-import { GoogleService } from '../services/google.service';
+import { GoogleService, EmailResponse } from '../services/google.service';
 
 const inputSchema = z.object({
   messageId: z.string(),
@@ -9,27 +9,21 @@ const inputSchema = z.object({
   from: z.string(),
   category: z.object({
     category: z.string(),
-    confidence: z.number()
+    confidence: z.number(),
+    alternative: z.string().optional().nullable(),
+    promotion_score: z.number().optional().nullable()
   }),
   urgency: z.object({
     urgency: z.string(),
     score: z.number(),
-    factors: z.object({
-      subject_keyword_urgent: z.number(),
-      keyword_score: z.number(),
-      low_urgency_modifier: z.number(),
-      sentiment_score: z.number(),
-      time_phrase_tomorrow: z.number().optional(),
-      time_phrase_by_eod: z.number().optional()
-    })
+    factors: z.record(z.number()).optional()
   }),
   importance: z.object({
     importance: z.string(),
     score: z.number(),
-    factors: z.object({
-      vip_sender: z.number()
-    })
-  })
+    factors: z.record(z.number()).optional()
+  }),
+  shouldArchive: z.boolean().optional().default(false)
 })
 
 export const config: EventConfig<typeof inputSchema> = {
@@ -37,31 +31,81 @@ export const config: EventConfig<typeof inputSchema> = {
   name: 'Organize Email',
   description: 'Organizes emails based on analysis, applies labels, and archives if necessary',
   subscribes: ['gmail.email.analyzed'],
-  emits: ['gmail.email.organized', 'gmail.email.organization.failed'],
+  emits: ['gmail.email.organized', 'gmail.email.organization.failed', 'gmail.email.archived'],
   input: inputSchema,
   flows: ['gmail-flow'],
 }
 
 export const handler: StepHandler<typeof config> = async (input, {emit, logger, state}) => {
-  logger.info(`Organizing email: ${input.messageId}`)
+  logger.info(`Organizing email: ${JSON.stringify(input, null, 2)}`)
 
   try {
     const googleService = new GoogleService(logger, state);
-    const {labelsToApply, labelIds} = await googleService.updateLabels(input);
+    
+    // Convert input to EmailResponse type format
+    const emailData: EmailResponse = {
+      messageId: input.messageId,
+      threadId: input.threadId,
+      subject: input.subject,
+      from: input.from,
+      snippet: input.subject + " " + (input.category?.category || ""), // Use subject as snippet if needed
+      labelIds: [],
+      category: input.category,
+      urgency: input.urgency,
+      importance: input.importance,
+      shouldArchive: input.shouldArchive
+    };
+    
+    const {labelsToApply, labelIds} = await googleService.updateLabels(emailData);
 
-    if (labelIds.length > 0) {
+    // Process any actions based on email analysis
+    const actions = [];
+
+    // Apply labels if any were determined
+    if (labelIds && labelIds.length > 0) {
       await googleService.modifyMessage(input.messageId, labelIds);
       logger.info(`Applied labels to email: ${labelsToApply.join(', ')}`);
+      actions.push('applied_labels');
     }
 
-    // Emit success event
+    // Handle archiving for promotional emails if indicated
+    if (input.shouldArchive === true) {
+      // Create or get the 'Archive' label
+      const archiveLabel = await googleService.findOrCreateLabel('Archived_Promotions');
+      
+      if (archiveLabel && archiveLabel.id) {
+        // Archive the message by removing from inbox and adding the archive label
+        const archiveResult = await googleService.archiveMessage(input.messageId, archiveLabel.id);
+        logger.info(`Archived promotional email: ${input.messageId}`);
+        actions.push('archived');
+        
+        // Emit archive event
+        await emit({
+          topic: 'gmail.email.archived',
+          data: {
+            messageId: input.messageId,
+            threadId: input.threadId,
+            category: input.category.category,
+            reason: 'promotional_content'
+          }
+        });
+      }
+    }
+
+    
+    logger.info(`Emitting organized email: ${JSON.stringify({
+      messageId: input.messageId,
+      appliedLabels: labelsToApply || [],
+      actions: actions
+    }, null, 2)}`)
     await emit({
       topic: 'gmail.email.organized',
       data: {
         messageId: input.messageId,
-        appliedLabels: labelsToApply
+        appliedLabels: labelsToApply || [],
+        actions: actions
       }
-    })
+    });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error(`Failed to organize email: ${errorMessage}`, {error})

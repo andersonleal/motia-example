@@ -7,7 +7,12 @@ import { appConfig } from "../config/default";
 export abstract class GoogleBaseService {
   protected logger: Logger
   protected state: FlowContext['state']
-  protected readonly SCOPES = ['https://www.googleapis.com/auth/gmail.readonly'];
+  protected readonly SCOPES = [
+    'https://www.googleapis.com/auth/gmail.readonly', 
+    'https://www.googleapis.com/auth/gmail.modify',
+    'https://www.googleapis.com/auth/gmail.labels',
+    'https://www.googleapis.com/auth/gmail.send'
+  ];
 
   constructor(logger: Logger, state: FlowContext['state']) {
     this.logger = logger

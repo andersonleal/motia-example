@@ -31,9 +31,23 @@ EMAIL_CATEGORIES = [
     "work.task", "work.meeting", "work.update",
     "personal.finance", "personal.health", "personal.family",
     "social.event", "social.networking",
-    "promotion.marketing", "promotion.discount",
+    "promotion.marketing", "promotion.discount", "promotion.newsletter",
     "update.newsletter", "update.notification",
     "spam"
+]
+
+# Enhanced keywords specifically for detecting promotional emails with higher precision
+PROMOTION_KEYWORDS = {
+    "discount": 1.0, "sale": 1.0, "offer": 0.9, "promo": 0.9,
+    "limited time": 0.8, "exclusive": 0.8, "off": 0.7, "deal": 0.7,
+    "subscribe": 0.6, "unsubscribe": 0.6, "newsletter": 0.6,
+    "marketing": 0.5, "advertisement": 0.5, "coupon": 0.5
+}
+
+# Expanded domain list for common promotional email senders
+PROMOTIONAL_DOMAINS = [
+    "marketing", "newsletter", "news", "offers", "info", "noreply",
+    "promotions", "deals", "sales", "updates", "notifications"
 ]
 
 # Expanded urgent words and phrases with weighted importance
@@ -62,18 +76,34 @@ async def handler(args, ctx):
         message_id = getattr(args, 'messageId', 'unknown')
         thread_id = getattr(args, 'threadId', 'unknown')
         subject = getattr(args, 'subject', '')
-        content = getattr(args, 'content', '')
+        # Using snippet instead of content as that's what's provided in EmailResponse
+        content = getattr(args, 'snippet', '')
         sender = getattr(args, 'from', '')
-        date_str = getattr(args, 'date', None)
+        label_ids = getattr(args, 'labelIds', [])
+        # Date might not be available, default to current time
+        date_str = getattr(args, 'date', datetime.now().isoformat())
 
         # Combine subject and content for better analysis
         full_text = f"{subject}\n\n{content}"
 
+        # Check sender domain for promotional patterns
+        sender_domain = ""
+        if '@' in sender:
+            sender_domain = sender.split('@')[1].lower() if '@' in sender else ""
+            sender_local = sender.split('@')[0].lower() if '@' in sender else ""
+            
+            # Check if sender appears to be a promotional source
+            is_promo_sender = any(promo_term in sender_local for promo_term in PROMOTIONAL_DOMAINS)
+            
+            if is_promo_sender:
+                ctx.logger.info(f"Detected promotional sender: {sender}")
+
         ctx.logger.info('Processing email: ' +
                         f"messageId={message_id}, " +
                         f"subject={subject[:50] + ('...' if len(subject) > 50 else '')}, " +
-                        f"contentLength={len(content)}, " +
-                        f"from={sender}")
+                        f"snippetLength={len(content)}, " +
+                        f"from={sender}, " +
+                        f"labels={label_ids}")
 
         # Analyze email category
         category_result = await analyze_category(full_text, ctx)
@@ -87,6 +117,16 @@ async def handler(args, ctx):
         importance_result = await analyze_importance(sender, subject, content, ctx)
         ctx.logger.info('Importance analysis complete' + str(importance_result))
 
+        # Should email be archived? Default to false
+        should_archive = False
+        
+        # Set archive flag for promotional emails with low urgency and importance
+        if (category_result['category'].startswith('promotion.') or 
+            (category_result.get('promotion_score', 0) > 0.7)):
+            if urgency_result['urgency'] == 'low' and importance_result['importance'] == 'low':
+                should_archive = True
+                ctx.logger.info(f"Marking promotional email for archiving: {message_id}")
+
         # Emit the results
         await ctx.emit({
             'topic': 'gmail.email.analyzed',
@@ -97,7 +137,9 @@ async def handler(args, ctx):
                 'from': sender,
                 'category': category_result,
                 'urgency': urgency_result,
-                'importance': importance_result
+                'importance': importance_result,
+                'labelIds': label_ids,
+                'shouldArchive': should_archive
             }
         })
         state = await ctx.state.get('email_analysis', 'processed_emails')
@@ -111,6 +153,7 @@ async def handler(args, ctx):
             'category': category_result['category'],
             'urgency': urgency_result['urgency'],
             'importance': importance_result['importance'],
+            'shouldArchive': should_archive,
             'processingTime': datetime.now().isoformat()
         })
         # Save analysis results to state
@@ -162,6 +205,25 @@ async def analyze_category(text, ctx):
         second_category = result['labels'][1] if len(result['labels']) > 1 else None
         second_confidence = result['scores'][1] if len(result['scores']) > 1 else 0
 
+        # Enhanced promotional email detection: Check for promotional signals in addition to classification
+        # This helps catch promotional emails that might be misclassified
+        promo_score = 0
+        
+        # Check for promotional keywords
+        text_lower = text.lower()
+        for keyword, weight in PROMOTION_KEYWORDS.items():
+            if keyword in text_lower:
+                promo_score += weight
+        
+        # Normalize the promo score
+        promo_score = min(promo_score / 3.0, 1.0)  # Cap at 1.0
+        
+        # If strong promotional signals are detected, override classification
+        if promo_score > 0.7 and not top_category.startswith("promotion."):
+            ctx.logger.info(f"Overriding category from {top_category} to promotion based on keywords (score: {promo_score})")
+            top_category = "promotion.marketing"
+            confidence = max(confidence, promo_score)
+        
         # If the top category has low confidence and second is close, use a hybrid approach
         if confidence < 0.6 and second_confidence > 0.3:
             # Extract main categories
@@ -178,7 +240,8 @@ async def analyze_category(text, ctx):
         return {
             'category': top_category,
             'confidence': confidence,
-            'alternative': second_category if second_confidence > 0.3 else None
+            'alternative': second_category if second_confidence > 0.3 else None,
+            'promotion_score': promo_score if promo_score > 0.3 else None
         }
     except Exception as e:
         ctx.logger.error(f"Error in category analysis: {str(e)}")

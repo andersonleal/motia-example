@@ -3,6 +3,7 @@ import { IEmail, ParseGmailApi } from 'gmail-api-parse-message-ts';
 
 import { google } from "googleapis";
 import { GoogleBaseService } from "./google-base.service";
+// Keep the Email type for backward compatibility or internal use
 type Email = {
   category: {
     category: string;
@@ -26,10 +27,28 @@ export type EmailResponse = {
   threadId: string;
   snippet: string;
   labelIds: string[];
+  category?: {
+    category: string;
+    confidence: number;
+    alternative?: string | null;
+    promotion_score?: number | null;
+  };
+  urgency?: {
+    urgency: string;
+    score: number;
+    factors?: Record<string, number>;
+  };
+  importance?: {
+    importance: string;
+    score: number;
+    factors?: Record<string, number>;
+  };
+  shouldArchive?: boolean;
 }
 
 type Category = 'work' | 'personal' | 'spam' | 'promotional' | 'social' | 'other' | 'unknown';
 type Urgency = 'high' | 'medium' | 'low';
+type Importance = 'high' | 'medium' | 'low';
 
 export class GoogleService extends GoogleBaseService {
   private readonly autoResponderName = 'Anderson Leal';
@@ -67,18 +86,98 @@ export class GoogleService extends GoogleBaseService {
     }
   }
 
-  async updateLabels (input: Email) {
+  // Helper function to determine category from EmailResponse
+  private determineCategory(email: EmailResponse): Category {
+    // Check labelIds first
+    if (email.labelIds) {
+      if (email.labelIds.some(id => id.toLowerCase().includes('work'))) return 'work';
+      if (email.labelIds.some(id => id.toLowerCase().includes('personal'))) return 'personal';
+      if (email.labelIds.some(id => id.toLowerCase().includes('social'))) return 'social';
+      if (email.labelIds.some(id => id.toLowerCase().includes('promotions'))) return 'promotional';
+      if (email.labelIds.some(id => id.toLowerCase().includes('spam'))) return 'spam';
+    }
+    
+    // Check subject and snippet
+    const contentToCheck = `${email.subject} ${email.snippet}`.toLowerCase();
+    
+    if (/work|task|project|deadline|meeting|presentation/i.test(contentToCheck)) return 'work';
+    if (/personal|family|friend|vacation|holiday/i.test(contentToCheck)) return 'personal';
+    if (/social|event|party|gathering|meetup/i.test(contentToCheck)) return 'social';
+    if (/deal|discount|offer|subscription|newsletter|unsubscribe/i.test(contentToCheck)) return 'promotional';
+    
+    // Default
+    return 'unknown';
+  }
+
+  // Helper function to determine urgency from EmailResponse
+  private determineUrgency(email: EmailResponse): Urgency {
+    const contentToCheck = `${email.subject} ${email.snippet}`.toLowerCase();
+    
+    if (/urgent|asap|emergency|immediately|deadline|today/i.test(contentToCheck)) return 'high';
+    if (/important|priority|attention|soon/i.test(contentToCheck)) return 'medium';
+    
+    // Default
+    return 'low';
+  }
+
+  // Helper function to determine importance from EmailResponse
+  private determineImportance(email: EmailResponse): Importance {
+    const contentToCheck = `${email.subject} ${email.snippet}`.toLowerCase();
+    
+    if (/important|critical|essential|key|crucial/i.test(contentToCheck)) return 'high';
+    if (/significant|noteworthy|relevant/i.test(contentToCheck)) return 'medium';
+    
+    // Default
+    return 'low';
+  }
+
+  async updateLabels(input: EmailResponse) {
     this.labelsToApply = [];
     this.labelIds = [];
 
-    const categoryValue = input.category.category as Category;
-    const categoryLabel = this.labelMappings[categoryValue];
+    // Use the analyzed category if available, otherwise determine it ourselves
+    let category: Category;
+    if (input.category && input.category.category) {
+      // Extract main category from the detailed category (e.g., "promotion.marketing" -> "promotional")
+      const categoryParts = input.category.category.split('.');
+      const mainCategory = categoryParts[0];
+      
+      // Map the main category to our Category type
+      if (mainCategory === 'work') category = 'work';
+      else if (mainCategory === 'personal') category = 'personal';
+      else if (mainCategory === 'social') category = 'social';
+      else if (mainCategory === 'promotion') category = 'promotional';
+      else if (mainCategory === 'spam') category = 'spam';
+      else if (mainCategory === 'update') category = 'other';
+      else category = 'unknown';
+      
+      // Also add a subcategory label for more detailed organization if applicable
+      if (categoryParts.length > 1 && categoryParts[1]) {
+        const subCategory = categoryParts[1];
+        const subCategoryLabel = `${this.labelMappings[category]}-${subCategory.charAt(0).toUpperCase() + subCategory.slice(1)}`;
+        await this.processLabel(subCategoryLabel);
+      }
+    } else {
+      category = this.determineCategory(input);
+    }
+
+    // Apply the main category label
+    const categoryLabel = this.labelMappings[category];
     if (categoryLabel) {
       await this.processLabel(categoryLabel);
     }
 
-    const urgencyValue = input.urgency.urgency as Urgency;
-    const urgencyLabel = this.urgencyLabels[urgencyValue];
+    // Apply urgency label if available
+    let urgency: Urgency = 'medium';
+    if (input.urgency && input.urgency.urgency) {
+      if (input.urgency.urgency === 'high') urgency = 'high';
+      else if (input.urgency.urgency === 'medium') urgency = 'medium';
+      else urgency = 'low';
+    } else {
+      urgency = this.determineUrgency(input);
+    }
+    
+    const urgencyLabel = this.urgencyLabels[urgency];
     if (urgencyLabel) {
       await this.processLabel(urgencyLabel);
     }
@@ -89,12 +188,16 @@ export class GoogleService extends GoogleBaseService {
     }
   }
 
-  private generateResponse(email: Email) {
+  private generateResponse(email: EmailResponse) {
     let response = '';
 
-    const [mainCategory, subCategory] = email.category.category.split('.');
-    const isUrgent = email.urgency.urgency === 'high';
-    const isImportant = email.importance.importance === 'high';
+    const category = this.determineCategory(email);
+    const urgency = this.determineUrgency(email);
+    const importance = this.determineImportance(email);
+    
+    const [mainCategory, subCategory] = category.split('.');
+    const isUrgent = urgency === 'high';
+    const isImportant = importance === 'high';
 
     switch (mainCategory) {
       case 'work':
@@ -143,6 +246,7 @@ export class GoogleService extends GoogleBaseService {
         break;
 
       case 'promotion':
+      case 'promotional':
         // No response needed for marketing/promotional emails
         return null;
 
@@ -216,12 +320,13 @@ export class GoogleService extends GoogleBaseService {
     };
   }
 
-  async sendEmail(email: Email) {
-    const responseText = this.generateResponse(email);
+  async sendEmail(emailResponse: EmailResponse) {
+    const responseText = this.generateResponse(emailResponse);
 
     if (!responseText) {
-      this.logger.info(`No auto-response generated for this email category ${email.category}`);
-      throw new Error(`No auto-response generated for this email category ${email.category}`);
+      const category = this.determineCategory(emailResponse);
+      this.logger.info(`No auto-response generated for this email category ${category}`);
+      throw new Error(`No auto-response generated for this email category ${category}`);
     }
 
     const {
@@ -229,22 +334,67 @@ export class GoogleService extends GoogleBaseService {
       subject,
       from,
       threadId,
-    } = email
+    } = emailResponse
 
     this.logger.info(`Sending email ${messageId} to ${from} with subject ${subject} and threadId ${threadId} and responseText ${responseText}`)
   }
 
   async modifyMessage(messageId: string, labelIds: string[]) {
+
+    const auth = await this.getAuth()
+
+    const gmail = google.gmail({version: 'v1', auth});
+
+    await gmail.users.messages.modify({
+      userId: 'me',
+      id: messageId,
+      requestBody: {
+        addLabelIds: labelIds
+      }
+    });
+  }
+
+  async archiveMessage(messageId: string, archiveLabelId: string) {
+    this.logger.info(`Archiving message ${messageId} with archive label ${archiveLabelId}`);
+    
+    const auth = await this.getAuth()
+
+    const gmail = google.gmail({version: 'v1', auth});
+
+    await gmail.users.messages.modify({
+      userId: 'me',
+      id: messageId,
+      requestBody: {
+        removeLabelIds: ['INBOX'],
+        addLabelIds: [archiveLabelId]
+      }
+    });
+
     return {
       messageId,
-      labelIds
-    }
+      archived: true,
+      archiveLabelId
+    };
   }
 
   async findOrCreateLabel(labelName: string) {
+    const auth = await this.getAuth()
+
+    const gmail = google.gmail({version: 'v1', auth});
+
+    const labelList = await gmail.users.labels.list({userId: 'me'});
+
+    const label = labelList.data.labels?.find(l => l.name === labelName);
+
+    if (label) {
+      return label;
+    }
+
+    const newLabel = await gmail.users.labels.create({userId: 'me', requestBody: {name: labelName}});
+
     return {
-      id: '123',
-      name: labelName
+      id: newLabel.data.id,
+      name: newLabel.data.name
     }
   }
 }
