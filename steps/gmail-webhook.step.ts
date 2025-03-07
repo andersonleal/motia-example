@@ -23,6 +23,7 @@ export const config: ApiRouteConfig = {
   path: '/api/gmail-webhook',
   method: 'POST',
   emits: ['gmail.email.received'],
+  virtualSubscribes: ['api.gmail.webhook'],
   bodySchema: schema,
   flows: ['gmail-flow'],
 }

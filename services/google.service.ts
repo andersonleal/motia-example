@@ -354,6 +354,7 @@ export class GoogleService extends GoogleBaseService {
     });
   }
 
+
   async archiveMessage(messageId: string, archiveLabelId: string) {
     this.logger.info(`Archiving message ${messageId} with archive label ${archiveLabelId}`);
     

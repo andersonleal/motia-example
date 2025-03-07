@@ -70,12 +70,10 @@ export const handler: StepHandler<typeof config> = async (input, {emit, logger, 
 
     // Handle archiving for promotional emails if indicated
     if (input.shouldArchive === true) {
-      // Create or get the 'Archive' label
       const archiveLabel = await googleService.findOrCreateLabel('Archived_Promotions');
       
       if (archiveLabel && archiveLabel.id) {
-        // Archive the message by removing from inbox and adding the archive label
-        const archiveResult = await googleService.archiveMessage(input.messageId, archiveLabel.id);
+        await googleService.archiveMessage(input.messageId, archiveLabel.id);
         logger.info(`Archived promotional email: ${input.messageId}`);
         actions.push('archived');
         

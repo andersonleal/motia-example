@@ -202,7 +202,7 @@ async def analyze_category(text, ctx):
         confidence = result['scores'][0]
 
         # Get second-best category for potential refinement
-        second_category = result['labels'][1] if len(result['labels']) > 1 else None
+        second_category = result['labels'][1] if len(result['labels']) > 1 else -1
         second_confidence = result['scores'][1] if len(result['scores']) > 1 else 0
 
         # Enhanced promotional email detection: Check for promotional signals in addition to classification
@@ -228,7 +228,7 @@ async def analyze_category(text, ctx):
         if confidence < 0.6 and second_confidence > 0.3:
             # Extract main categories
             main_cat_1 = top_category.split('.')[0]
-            main_cat_2 = second_category.split('.')[0] if second_category else None
+            main_cat_2 = second_category.split('.')[0] if second_category else -1
 
             if main_cat_1 == main_cat_2:
                 # Same main category, strong consensus
@@ -240,8 +240,8 @@ async def analyze_category(text, ctx):
         return {
             'category': top_category,
             'confidence': confidence,
-            'alternative': second_category if second_confidence > 0.3 else None,
-            'promotion_score': promo_score if promo_score > 0.3 else None
+            'alternative': second_category if second_confidence > 0.3 else -1,
+            'promotion_score': promo_score if promo_score > 0.3 else -1
         }
     except Exception as e:
         ctx.logger.error(f"Error in category analysis: {str(e)}")
@@ -311,14 +311,11 @@ async def analyze_urgency(text, subject, sender, date_str, ctx):
         )
 
         # Extract the sentiment score
-        sentiment_score = None
+        sentiment_score = 0.3  # Default moderate urgency
         for item in result:
             if item['label'] == 'NEGATIVE':
                 sentiment_score = item['score']
                 break
-
-        if sentiment_score is None:
-            sentiment_score = 0.3  # Default moderate urgency
 
         urgency_factors["sentiment_score"] = sentiment_score
 

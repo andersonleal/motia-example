@@ -23,7 +23,7 @@ export abstract class GoogleBaseService {
     await this.state.set<Credentials>('gmail.auth', 'tokens', tokens)
   }
 
-  protected async getTokens(): Promise<Credentials | null> {
+  async getTokens(): Promise<Credentials | null> {
     return this.state.get<Credentials>('gmail.auth', 'tokens')
   }
 
@@ -59,6 +59,18 @@ export abstract class GoogleBaseService {
     await this.saveTokens(tokens)
 
     return tokens
+  }
+
+  async watchEmail(): Promise<void> {
+    const authClient = await this.getAuth()
+
+    const gmail = google.gmail({ version: 'v1', auth: authClient });
+
+    const requestBody = {
+      topicName: appConfig.google.topicName
+    };
+
+    await gmail.users.watch({ userId: 'me', requestBody });
   }
 
   async getAuthUrl(): Promise<string> {
