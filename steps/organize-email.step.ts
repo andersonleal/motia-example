@@ -31,7 +31,7 @@ export const config: EventConfig<typeof inputSchema> = {
   name: 'Organize Email',
   description: 'Organizes emails based on analysis, applies labels, and archives if necessary',
   subscribes: ['gmail.email.analyzed'],
-  emits: ['gmail.email.organized', 'gmail.email.organization.failed', 'gmail.email.archived'],
+  emits: ['gmail.email.organized', 'gmail.email.archived'],
   input: inputSchema,
   flows: ['gmail-flow'],
 }
@@ -90,13 +90,5 @@ export const handler: StepHandler<typeof config> = async (input, {emit, logger, 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error(`Failed to organize email: ${errorMessage}`, {error})
-
-    await emit({
-      topic: 'gmail.email.organization.failed',
-      data: {
-        messageId: input.messageId,
-        error: errorMessage
-      }
-    })
   }
 }

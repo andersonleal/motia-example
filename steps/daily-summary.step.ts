@@ -6,7 +6,7 @@ export const config: CronConfig = {
   name: 'Daily Email Summary',
   description: 'Generates and sends a daily summary of processed emails to Discord',
   cron: '* * 1 * *', // every day at 1am
-  emits: ['gmail.summaryGenerated'],
+  emits: ['gmail.summary.sent'],
   flows: ['gmail-flow']
 };
 
@@ -22,7 +22,7 @@ export const handler: StepHandler<typeof config> = async ({emit, logger, state})
     await state.set('email_analysis', 'processed_emails', []);
 
     await emit({
-      topic: 'gmail.summaryGenerated',
+      topic: 'gmail.summary.sent',
       data: {
         date: (new Date()).toISOString().split('T')[0],
         summary,

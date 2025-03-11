@@ -9,6 +9,8 @@ An intelligent Gmail account manager built with the Motia framework. This workfl
 - Automated responses based on email context
 - Email organization (labeling, archiving)
 - Daily summary reports via Discord
+- Gmail API integration with authentication flow
+- Real-time email monitoring with webhook notifications
 
 ## Prerequisites
 
@@ -34,9 +36,19 @@ An intelligent Gmail account manager built with the Motia framework. This workfl
    cp .env.example .env
    ```
 5. Edit the `.env` file with your credentials:
-   - Gmail API credentials
    - Hugging Face API token
    - Discord webhook URL
+   - Gmail API credentials will be obtained through the authentication flow
+
+## Gmail API Authentication
+
+This project includes a complete OAuth2 authentication flow for the Gmail API:
+
+1. Start the development server: `pnpm dev`
+2. Navigate to the authentication workflow in the Motia Workbench
+3. The workflow will generate an authorization URL
+4. Open the URL in your browser and authorize the application
+5. The application will receive and store your authentication tokens
 
 ## Discord Webhook Configuration
 
@@ -89,53 +101,64 @@ This will start the Motia server on http://localhost:3000. You can access the Wo
 
 The Gmail Account Manager workflow consists of the following steps:
 
-### 1. Gmail Webhook (API Step)
+### 1. Gmail Authentication (Multi-Step Flow)
+- **Files**: 
+  - `steps/gmail-get-auth-url.step.ts`: Generates OAuth2 authorization URL
+  - `steps/gmail-auth.step.ts`: Handles authorization code exchange
+  - `steps/gmail-token-status.step.ts`: Checks token validity and refreshes if needed
+
+### 2. Gmail Webhook (API Step)
 - **File**: `steps/gmail-webhook.step.ts`
 - **Purpose**: Receives notifications from Gmail when new emails arrive
 - **Emits**: `gmail.new_email` event with message details
 - **Endpoint**: `POST /api/gmail-webhook`
 
-### 2. Fetch Email (Event Step)
+### 3. Gmail Watch (API Step)
+- **File**: `steps/gmail-watch.step.ts`
+- **Purpose**: Sets up push notifications for the Gmail account
+- **Endpoint**: `GET /api/watch`
+
+### 4. Fetch Email (Event Step)
 - **File**: `steps/fetch-email.step.ts`
 - **Purpose**: Retrieves the full email content from Gmail API
-- **Subscribes to**: `gmail.new_email`
-- **Emits**: `gmail.email_fetched` with complete email data
+- **Subscribes to**: `gmail.email.received`
+- **Emits**: `gmail.email.fetched` with complete email data
 - **Key Functions**: Authenticates with Gmail API, fetches message content, parses attachments
 
-### 3. Analyze Email (Event Step)
+### 5. Analyze Email (Event Step)
 - **File**: `steps/analyze-email.step.py`
 - **Purpose**: Uses Hugging Face models to analyze email content
-- **Subscribes to**: `gmail.email_fetched`
-- **Emits**: `gmail.email_analyzed` with analysis results
+- **Subscribes to**: `gmail.email.fetched`
+- **Emits**: `gmail.email.analyzed` with analysis results
 - **Analysis Performed**: 
   - Category classification
   - Urgency detection
   - Sentiment analysis
   - Key information extraction
 
-### 4. Organize Email (Event Step)
+### 6. Organize Email (Event Step)
 - **File**: `steps/organize-email.step.ts`
 - **Purpose**: Applies labels and organization based on analysis
-- **Subscribes to**: `gmail.email_analyzed`
-- **Emits**: `gmail.email_organized`
+- **Subscribes to**: `gmail.email.analyzed`
+- **Emits**: `[gmail.email.organized, gmail.email.archived]`
 - **Actions**: Creates/applies labels, archives certain emails, marks importance
 
-### 5. Respond to Email (Event Step)
-- **File**: `steps/respond-to-email.step.ts`
+### 7. Auto-Respond to Email (Event Step)
+- **File**: `steps/auto-responder.step.ts`
 - **Purpose**: Generates and sends appropriate responses for certain emails
-- **Subscribes to**: `gmail.email_analyzed`
-- **Emits**: `gmail.email_responded`
+- **Subscribes to**: `gmail.email.analyzed`
+- **Emits**: `gmail.email.responded`
 - **Features**: 
   - Template selection based on email context
   - Personalization of responses
   - Auto-reply for urgent messages
   - Follow-up scheduling
 
-### 6. Daily Summary (Cron Step)
+### 8. Daily Summary (Cron Step)
 - **File**: `steps/daily-summary.step.ts`
 - **Purpose**: Compiles and sends daily email activity summary
 - **Schedule**: Runs daily at 6:00 PM
-- **Emits**: `gmail.summary_sent`
+- **Emits**: `gmail.summary.sent`
 - **Delivery**: Sends report to Discord via webhook
 
 ## Testing
@@ -145,27 +168,45 @@ The Gmail Account Manager workflow consists of the following steps:
 You can simulate a Gmail webhook event with this curl command:
 
 ```bash
-curl -X POST http://localhost:3000/api/gmail-webhook -H "Content-Type: application/json" -d '{"messageId": "123abc", "threadId": "thread123", "historyId": "hist123"}'
+curl -X POST http://localhost:3000/api/gmail-webhook -H "Content-Type: application/json" -d '{"message":{"data":"eyJlbWFpbEFkZHJlc3MiOiJhbmRlcnNvbm9mbEBnbWFpbC5jb20iLCJoaXN0b3J5SWQiOjI4NTUyNjgyfQ==","messageId":"13594882889976308","publishTime":"2025-03-10T23:30:09.266Z"},"subscription":"projects/xxxx/subscriptions/xxxxx"}'
 ```
-
-### Verifying the Flow
-
-1. Check the Motia Workbench console for logs
-2. Verify that email analysis is working correctly
-3. Confirm auto-responses are generated for appropriate emails
-4. Check your Discord channel for daily summaries (at 6 PM)
 
 ## Project Structure
 
-- `steps/analyze-email.step.py`: Python step for email analysis using Hugging Face
-- `steps/respond-to-email.step.ts`: TypeScript step for generating appropriate responses
-- `steps/fetch-email.step.ts`: Fetches email content from Gmail API
-- `steps/gmail-webhook.step.ts`: Webhook endpoint for Gmail notifications
-- `steps/organize-email.step.ts`: Organizes emails (labels, archives)
-- `steps/daily-summary.step.ts`: Sends daily summary to Discord
+- `steps/` - Contains all workflow steps
+  - `gmail-get-auth-url.step.ts` - Generates OAuth2 URL
+  - `gmail-auth.step.ts` - Handles OAuth2 flow
+  - `gmail-token-status.step.ts` - Manages token refresh
+  - `gmail-webhook.step.ts` - Webhook endpoint for Gmail notifications
+  - `gmail-watch.step.ts` - Sets up Gmail push notifications
+  - `fetch-email.step.ts` - Fetches email content from Gmail API
+  - `analyze-email.step.py` - Python step for email analysis using Hugging Face
+  - `organize-email.step.ts` - Organizes emails (labels, archives)
+  - `auto-responder.step.ts` - Generates appropriate responses
+  - `daily-summary.step.ts` - Sends daily summary to Discord
+- `services/` - Shared service modules
+- `config/` - Configuration files
+- `.motia/` - Motia framework configuration
+
+## Dependencies
+
+### Node.js Dependencies
+- @motiadev/core, @motiadev/workbench, motia: Motia framework
+- googleapis, google-auth-library: Google API integration
+- gmail-api-parse-message-ts: Gmail message parsing
+- axios: HTTP client
+- zod: Schema validation
+- react: UI components
+
+### Python Dependencies
+- transformers, torch: Machine learning models
+- scikit-learn, numpy, pandas: Data processing
+- huggingface_hub: Access to Hugging Face models
+- python-dotenv: Environment variable loading
 
 ## Troubleshooting
 
 - **Python Module Errors**: Ensure you've installed all required Python packages with `pip install -r requirements.txt`
-- **Authentication Errors**: Verify your API credentials in the `.env` file
-- **Webhook Issues**: Make sure the webhook endpoint is publicly accessible or properly configured for testing 
+- **Authentication Errors**: Verify your API credentials and follow the authentication flow
+- **Webhook Issues**: Make sure the webhook endpoint is publicly accessible or properly configured for testing
+- **Token Refresh Errors**: Check that your OAuth tokens are valid and that the refresh flow is working properly 

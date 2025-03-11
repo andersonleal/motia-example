@@ -7,7 +7,7 @@ export const config: ApiRouteConfig = {
   description: 'Watches Gmail for new emails',
   path: '/api/watch',
   method: 'GET',
-  emits: ['gmail.watch'],
+  emits: [],
   flows: ['gmail-flow'],
 }
 
