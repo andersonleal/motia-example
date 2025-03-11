@@ -5,9 +5,7 @@ const schema = z.object({
   message: z.object({
     data: z.string(),
     messageId: z.string(),
-    publishTime: z.string(),
   }),
-  subscription: z.string()
 })
 
 type MessageData = {
