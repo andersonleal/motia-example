@@ -5,7 +5,7 @@ export const config: ApiRouteConfig = {
   type: 'api',
   name: 'Gmail Auth',
   description: 'Handles OAuth2 callback from Google to complete Gmail authentication flow',
-  path: '/api/auth',
+  path: '/api/auth/callback',
   method: 'GET',
   emits: ['gmail.auth'],
   flows: ['gmail-flow'],

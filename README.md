@@ -16,7 +16,8 @@ An intelligent Gmail account manager built with the Motia framework. This workfl
 
 - Node.js (v18+)
 - Python (v3.8+)
-- Gmail API credentials
+- Gmail API credentials (client_id and client_secret)
+- Google Cloud project with Pub/Sub API enabled
 - Hugging Face API token
 - Discord webhook URL (for daily summaries)
 
@@ -35,10 +36,70 @@ An intelligent Gmail account manager built with the Motia framework. This workfl
    ```bash
    cp .env.example .env
    ```
-5. Edit the `.env` file with your credentials:
-   - Hugging Face API token
-   - Discord webhook URL
-   - Gmail API credentials will be obtained through the authentication flow
+5. Edit the `.env` file with your credentials (see sections below for obtaining these):
+   - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (from Google Cloud Console)
+   - `GOOGLE_PUBSUB_TOPIC` (from Google Pub/Sub setup)
+   - `HUGGINGFACE_API_TOKEN` (from Hugging Face)
+   - `DISCORD_WEBHOOK_URL` (from Discord webhook setup)
+   - `AUTO_RESPONDER_NAME` (name that appears in automated email responses)
+   - `AUTO_RESPONDER_EMAIL` (email address that appears in automated email responses)
+
+## Setting up Google Cloud Project and Gmail API
+
+Before you can use the Gmail Account Manager, you need to set up a Google Cloud project with the Gmail API and Pub/Sub:
+
+1. **Create a Google Cloud Project**:
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Click on "New Project" and follow the steps to create a new project
+   - Note your project ID for later use
+
+2. **Enable the Gmail API**:
+   - In your project, go to "APIs & Services" > "Library"
+   - Search for "Gmail API" and click on it
+   - Click "Enable"
+
+3. **Enable the Pub/Sub API**:
+   - In your project, go to "APIs & Services" > "Library"
+   - Search for "Cloud Pub/Sub API" and click on it
+   - Click "Enable"
+
+4. **Create OAuth Credentials**:
+   - Go to "APIs & Services" > "Credentials"
+   - Click "Create Credentials" > "OAuth client ID"
+   - Set the application type to "Desktop app"
+   - Click "Create"
+   - Note your Client ID and Client Secret for your `.env` file:
+     ```
+     GOOGLE_CLIENT_ID=your_client_id
+     GOOGLE_CLIENT_SECRET=your_client_secret
+     ```
+
+## Setting up Google Pub/Sub for Gmail Notifications
+
+To enable real-time email notifications, you need to set up a Google Cloud Pub/Sub topic and subscription:
+
+1. **Create a Pub/Sub Topic**:
+   - In your Google Cloud Console, go to "Pub/Sub" > "Topics"
+   - Click "Create Topic"
+   - Name your topic (e.g., `gmail-notifications`)
+   - Add the service account `gmail-api-push@system.gserviceaccount.com` as a Topic Publisher to allow Gmail to publish notifications
+   - Click "Create"
+   - Note the full topic name (usually `projects/your-project-id/topics/gmail-notifications`) for your `.env` file:
+     ```
+     GOOGLE_PUBSUB_TOPIC=projects/your-project-id/topics/gmail-notifications
+     ```
+
+2. **Create a Pub/Sub Subscription**:
+   - Once your topic is created, click "Create Subscription"
+   - Name your subscription (e.g., `gmail-notifications-push`)
+   - Set the Delivery Type to "Push"
+   - Set the Endpoint URL to your webhook URL (e.g., `https://your-domain.com/api/gmail-webhook`)
+     - For local development, you'll need to use a tool like ngrok to expose your local server
+   - Click "Create"
+
+3. **Set up Domain Verification** (if needed):
+   - If you're using a custom domain for your webhook endpoint, you may need to verify domain ownership
+   - Follow the instructions in Google Cloud Console for domain verification
 
 ## Gmail API Authentication
 
@@ -209,4 +270,5 @@ curl -X POST http://localhost:3000/api/gmail-webhook -H "Content-Type: applicati
 - **Python Module Errors**: Ensure you've installed all required Python packages with `pip install -r requirements.txt`
 - **Authentication Errors**: Verify your API credentials and follow the authentication flow
 - **Webhook Issues**: Make sure the webhook endpoint is publicly accessible or properly configured for testing
-- **Token Refresh Errors**: Check that your OAuth tokens are valid and that the refresh flow is working properly 
+- **Token Refresh Errors**: Check that your OAuth tokens are valid and that the refresh flow is working properly
+- **Pub/Sub Not Working**: Verify that your Pub/Sub topic and subscription are properly configured and that your service account has the necessary permissions 

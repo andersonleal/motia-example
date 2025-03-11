@@ -3,6 +3,7 @@ import { IEmail, ParseGmailApi } from 'gmail-api-parse-message-ts';
 
 import { google } from "googleapis";
 import { GoogleBaseService } from "./google-base.service";
+import { appConfig } from "../config/default";
 
 export type EmailResponse = {
   subject: string;
@@ -34,8 +35,8 @@ type Category = 'work' | 'personal' | 'spam' | 'promotional' | 'social' | 'other
 type Urgency = 'high' | 'medium' | 'low';
 
 export class GoogleService extends GoogleBaseService {
-  private readonly autoResponderName = 'Anderson Leal';
-  private readonly autoResponderEmail = 'andersonofl@gmail.com';
+  private readonly autoResponderName = appConfig.autoResponder.name;
+  private readonly autoResponderEmail = appConfig.autoResponder.email;
   private readonly  labelMappings: Record<Category, string> = {
     work: 'Work',
     personal: 'Personal',
