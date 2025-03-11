@@ -30,7 +30,7 @@ const inputSchema = z.object({
 // Define the step configuration
 export const config: EventConfig<typeof inputSchema> = {
   type: 'event',
-  name: 'Gmail Auto Responder',
+  name: 'Auto Responder Email',
   description: 'Automatically replies to emails based on their category and urgency',
   subscribes: ['gmail.email.analyzed'],
   emits: ['gmail.email.replied'],

@@ -16,7 +16,7 @@ type MessageData = {
 
 export const config: ApiRouteConfig = {
   type: 'api',
-  name: 'Gmail Monitor',
+  name: 'Webhook API',
   description: 'Receives webhook notifications from Gmail for new emails',
   path: '/api/gmail-webhook',
   method: 'POST',

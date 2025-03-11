@@ -26,7 +26,7 @@
     },
     "steps/gmail-token-status.step.ts": {
       "x": 1787,
-      "y": 68
+      "y": 17.797480807096377
     },
     "steps/gmail-watch.step.ts": {
       "x": 1498,
@@ -41,8 +41,8 @@
       "y": 0
     },
     "steps/noops/google-auth-noops.step.ts": {
-      "x": 1014.9941850636712,
-      "y": 396.14900962019686
+      "x": 1178.1595872017188,
+      "y": 549.9212499730157
     },
     "steps/noops/human-review.step.ts": {
       "x": 408.33814713896453,
@@ -51,6 +51,22 @@
     "steps/organize-email.step.ts": {
       "x": 960.4179836512262,
       "y": 980.4279291553134
+    },
+    "steps/api/gmail-get-auth-url.step.ts": {
+      "x": 1221.2611084571167,
+      "y": 34.15968490056255
+    },
+    "steps/api/gmail-auth.step.ts": {
+      "x": 823.0995361651217,
+      "y": 13.861732245607953
+    },
+    "steps/api/gmail-watch.step.ts": {
+      "x": 1504.0507117782772,
+      "y": 10.989291426914747
+    },
+    "steps/api/gmail-webhook.step.ts": {
+      "x": 389.1493042476825,
+      "y": 347.2872440818693
     }
   }
 }

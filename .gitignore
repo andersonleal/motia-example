@@ -16,6 +16,7 @@ coverage/
 .env
 .env.*
 !.env.example
+.cursorrules
 
 # Motia generated
 .motia/

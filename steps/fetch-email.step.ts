@@ -9,7 +9,7 @@ const schema = z.object({
 
 export const config: EventConfig<typeof schema> = {
   type: 'event',
-  name: 'Gmail Email Fetcher',
+  name: 'Email Fetcher',
   description: 'Fetches email content from Gmail when triggered by an email received event',
   subscribes: ['gmail.email.received'],
   emits: ['gmail.email.fetched'],
