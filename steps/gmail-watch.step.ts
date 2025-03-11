@@ -17,7 +17,7 @@ export const handler: StepHandler<typeof config> = async (req, {logger, state}) 
   try {
     await googleService.watchEmail()
   } catch (error) {
-    logger.error(`Error watching emails: ${error}`)
+    logger.error(`Error watching emails: ${error instanceof Error ? error.message : 'Unknown error'}`)
     return {
       status: 500,
       body: {

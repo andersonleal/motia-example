@@ -3,10 +3,11 @@ import { Credentials, OAuth2Client } from 'google-auth-library';
 
 import { google } from "googleapis";
 import { appConfig } from "../config/default";
+import { StateService } from "./state.service";
 
 export abstract class GoogleBaseService {
   protected logger: Logger
-  protected state: FlowContext['state']
+  protected stateService: StateService;
   protected readonly SCOPES = [
     'https://www.googleapis.com/auth/gmail.readonly', 
     'https://www.googleapis.com/auth/gmail.modify',
@@ -16,15 +17,16 @@ export abstract class GoogleBaseService {
 
   constructor(logger: Logger, state: FlowContext['state']) {
     this.logger = logger
-    this.state = state
+    this.stateService = new StateService(state)
   }
 
   protected async saveTokens(tokens: Credentials) {
-    await this.state.set<Credentials>('gmail.auth', 'tokens', tokens)
+    this.logger.info(`Saving tokens ${JSON.stringify(tokens)}`)
+    await this.stateService.saveTokens(tokens)
   }
 
   async getTokens(): Promise<Credentials | null> {
-    return this.state.get<Credentials>('gmail.auth', 'tokens')
+    return this.stateService.getTokens()
   }
 
   protected async getAuth(): Promise<OAuth2Client> {
@@ -67,10 +69,16 @@ export abstract class GoogleBaseService {
     const gmail = google.gmail({ version: 'v1', auth: authClient });
 
     const requestBody = {
-      topicName: appConfig.google.topicName
+      topicName: appConfig.google.topicName,
+      labelIds: ['INBOX'],
     };
 
-    await gmail.users.watch({ userId: 'me', requestBody });
+    const response = await gmail.users.watch({ userId: 'me', requestBody });
+
+    if(response.data?.historyId) {
+      this.logger.info(`Watching email with historyId ${response.data.historyId}`)
+      await this.stateService.saveLastHistoryId(response.data.historyId);
+    }
   }
 
   async getAuthUrl(): Promise<string> {

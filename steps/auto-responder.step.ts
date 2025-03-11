@@ -1,56 +1,63 @@
 import {EventConfig, StepHandler} from 'motia';
-import {GoogleService} from '../services/google.service';
+import {EmailResponse, GoogleService} from '../services/google.service';
 import {z} from 'zod';
 
-// Define the schema for categorized emails
-const categorizedEmailSchema = z.object({
+const inputSchema = z.object({
   messageId: z.string(),
   threadId: z.string(),
   subject: z.string(),
   from: z.string(),
   category: z.object({
     category: z.string(),
-    confidence: z.number()
+    confidence: z.number(),
+    alternative: z.string().optional().nullable(),
+    promotion_score: z.number().optional().nullable()
   }),
   urgency: z.object({
     urgency: z.string(),
     score: z.number(),
-    factors: z.object({
-      subject_keyword_urgent: z.number(),
-      keyword_score: z.number(),
-      low_urgency_modifier: z.number(),
-      sentiment_score: z.number(),
-      time_phrase_tomorrow: z.number().optional(),
-      time_phrase_by_eod: z.number().optional()
-    })
+    factors: z.record(z.number()).optional()
   }),
   importance: z.object({
     importance: z.string(),
     score: z.number(),
-    factors: z.object({
-      vip_sender: z.number()
-    })
-  })
-});
+    factors: z.record(z.number()).optional()
+  }),
+  shouldArchive: z.boolean().optional().default(false)
+})
+
 
 // Define the step configuration
-export const config: EventConfig<typeof categorizedEmailSchema> = {
+export const config: EventConfig<typeof inputSchema> = {
   type: 'event',
   name: 'Gmail Auto Responder',
   description: 'Automatically replies to emails based on their category and urgency',
   subscribes: ['gmail.email.analyzed'],
   emits: ['gmail.email.replied'],
-  input: categorizedEmailSchema,
+  input: inputSchema,
   flows: ['gmail-flow']
 };
 
 export const handler: StepHandler<typeof config> = async (input, {emit, logger, state}) => {
   try {
 
-    const googleService = new GoogleService(logger);
-    await googleService.sendEmail(input);
+    const emailData: EmailResponse = {
+      messageId: input.messageId,
+      threadId: input.threadId,
+      subject: input.subject,
+      from: input.from,
+      snippet: input.subject + " " + (input.category?.category || ""), // Use subject as snippet if needed
+      labelIds: [],
+      category: input.category,
+      urgency: input.urgency,
+      importance: input.importance,
+      shouldArchive: input.shouldArchive
+    };
 
-    logger.info(`Auto-response sent`);
+    const googleService = new GoogleService(logger, state);
+    await googleService.sendEmail(emailData);
+
+    logger.info(`Auto-response sent ${JSON.stringify(emailData, null, 2)}`);
 
     await emit({
       topic: 'gmail.email.replied',

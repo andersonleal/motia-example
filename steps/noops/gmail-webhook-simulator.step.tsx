@@ -12,18 +12,7 @@ export const Node: React.FC<ApiNodeProps> = ({data}) => {
   const [selectedMessage, setSelectedMessage] = useState(events[0]);
 
   const simulateEvent = (message = selectedMessage) => {
-    const old = {
-      message: {
-        data: 'eyJlbWFpbEFkZHJlc3MiOiJhbmRlcnNvbm9mbEBnbWFpbC5jb20iLCJoaXN0b3J5SWQiOjI4NTI4NDIyfQ==',
-        messageId: '13746275769122215',
-        message_id: '13746275769122215',
-        publishTime: '2025-03-07T13:15:32.62Z',
-        publish_time: '2025-03-07T13:15:32.62Z'
-      },
-      subscription: 'projects/motia-452722/subscriptions/email'
-    }
-    // const lastMessage = {"message":{"data":"eyJlbWFpbEFkZHJlc3MiOiJhbmRlcnNvbm9mbEBnbWFpbC5jb20iLCJoaXN0b3J5SWQiOjI4NTMyODU4fQ==","messageId":"13571913348576422","publishTime":"2025-03-07T21:15:27.275Z"},"subscription":"projects/motia-452722/subscriptions/email"};
-    const lastMessage = {"message":{"data":"eyJlbWFpbEFkZHJlc3MiOiJhbmRlcnNvbm9mbEBnbWFpbC5jb20iLCJoaXN0b3J5SWQiOjI4NTMzNzg3fQ==","messageId":"14156723206660308","publishTime":"2025-03-07T23:20:04.027Z"},"subscription":"projects/motia-452722/subscriptions/motia-push"}
+    const lastMessage = {"message":{"data":"eyJlbWFpbEFkZHJlc3MiOiJhbmRlcnNvbm9mbEBnbWFpbC5jb20iLCJoaXN0b3J5SWQiOjI4NTUyNjgyfQ==","messageId":"13594882889976308","publishTime":"2025-03-10T23:30:09.266Z"},"subscription":"projects/motia-452722/subscriptions/motia-push"}
     fetch('/api/gmail-webhook', {
       method: 'POST',
       headers: {

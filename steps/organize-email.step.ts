@@ -37,12 +37,9 @@ export const config: EventConfig<typeof inputSchema> = {
 }
 
 export const handler: StepHandler<typeof config> = async (input, {emit, logger, state}) => {
-  logger.info(`Organizing email: ${JSON.stringify(input, null, 2)}`)
-
   try {
     const googleService = new GoogleService(logger, state);
     
-    // Convert input to EmailResponse type format
     const emailData: EmailResponse = {
       messageId: input.messageId,
       threadId: input.threadId,
@@ -58,24 +55,17 @@ export const handler: StepHandler<typeof config> = async (input, {emit, logger, 
     
     const {labelsToApply, labelIds} = await googleService.updateLabels(emailData);
 
-    // Process any actions based on email analysis
-    const actions = [];
-
-    // Apply labels if any were determined
     if (labelIds && labelIds.length > 0) {
       await googleService.modifyMessage(input.messageId, labelIds);
       logger.info(`Applied labels to email: ${labelsToApply.join(', ')}`);
-      actions.push('applied_labels');
     }
 
-    // Handle archiving for promotional emails if indicated
     if (input.shouldArchive === true) {
       const archiveLabel = await googleService.findOrCreateLabel('Archived_Promotions');
       
       if (archiveLabel && archiveLabel.id) {
         await googleService.archiveMessage(input.messageId, archiveLabel.id);
         logger.info(`Archived promotional email: ${input.messageId}`);
-        actions.push('archived');
         
         // Emit archive event
         await emit({
@@ -89,19 +79,12 @@ export const handler: StepHandler<typeof config> = async (input, {emit, logger, 
         });
       }
     }
-
     
-    logger.info(`Emitting organized email: ${JSON.stringify({
-      messageId: input.messageId,
-      appliedLabels: labelsToApply || [],
-      actions: actions
-    }, null, 2)}`)
     await emit({
       topic: 'gmail.email.organized',
       data: {
         messageId: input.messageId,
-        appliedLabels: labelsToApply || [],
-        actions: actions
+        appliedLabels: labelsToApply || []
       }
     });
   } catch (error: unknown) {

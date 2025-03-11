@@ -1,5 +1,5 @@
-import {ApiRouteConfig, StepHandler} from '@motiadev/core';
-import {z} from 'zod';
+import { ApiRouteConfig, StepHandler } from '@motiadev/core';
+import { z } from 'zod';
 
 const schema = z.object({
   message: z.object({

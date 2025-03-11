@@ -3,22 +3,6 @@ import { IEmail, ParseGmailApi } from 'gmail-api-parse-message-ts';
 
 import { google } from "googleapis";
 import { GoogleBaseService } from "./google-base.service";
-// Keep the Email type for backward compatibility or internal use
-type Email = {
-  category: {
-    category: string;
-  };
-  urgency: {
-    urgency: string;
-  };
-  importance: {
-    importance: string;
-  };
-  messageId: string;
-  subject: string;
-  from: string;
-  threadId: string;
-};
 
 export type EmailResponse = {
   subject: string;
@@ -48,10 +32,10 @@ export type EmailResponse = {
 
 type Category = 'work' | 'personal' | 'spam' | 'promotional' | 'social' | 'other' | 'unknown';
 type Urgency = 'high' | 'medium' | 'low';
-type Importance = 'high' | 'medium' | 'low';
 
 export class GoogleService extends GoogleBaseService {
   private readonly autoResponderName = 'Anderson Leal';
+  private readonly autoResponderEmail = 'andersonofl@gmail.com';
   private readonly  labelMappings: Record<Category, string> = {
     work: 'Work',
     personal: 'Personal',
@@ -82,13 +66,14 @@ export class GoogleService extends GoogleBaseService {
 
     if (label.id) {
       this.labelIds.push(label.id);
-      this.labelsToApply.push(labelName);
+      if (!this.labelsToApply.includes(labelName)) {
+        this.labelsToApply.push(labelName);
+      }
     }
   }
 
   // Helper function to determine category from EmailResponse
   private determineCategory(email: EmailResponse): Category {
-    // Check labelIds first
     if (email.labelIds) {
       if (email.labelIds.some(id => id.toLowerCase().includes('work'))) return 'work';
       if (email.labelIds.some(id => id.toLowerCase().includes('personal'))) return 'personal';
@@ -97,7 +82,6 @@ export class GoogleService extends GoogleBaseService {
       if (email.labelIds.some(id => id.toLowerCase().includes('spam'))) return 'spam';
     }
     
-    // Check subject and snippet
     const contentToCheck = `${email.subject} ${email.snippet}`.toLowerCase();
     
     if (/work|task|project|deadline|meeting|presentation/i.test(contentToCheck)) return 'work';
@@ -105,29 +89,15 @@ export class GoogleService extends GoogleBaseService {
     if (/social|event|party|gathering|meetup/i.test(contentToCheck)) return 'social';
     if (/deal|discount|offer|subscription|newsletter|unsubscribe/i.test(contentToCheck)) return 'promotional';
     
-    // Default
     return 'unknown';
   }
 
-  // Helper function to determine urgency from EmailResponse
   private determineUrgency(email: EmailResponse): Urgency {
     const contentToCheck = `${email.subject} ${email.snippet}`.toLowerCase();
     
     if (/urgent|asap|emergency|immediately|deadline|today/i.test(contentToCheck)) return 'high';
     if (/important|priority|attention|soon/i.test(contentToCheck)) return 'medium';
     
-    // Default
-    return 'low';
-  }
-
-  // Helper function to determine importance from EmailResponse
-  private determineImportance(email: EmailResponse): Importance {
-    const contentToCheck = `${email.subject} ${email.snippet}`.toLowerCase();
-    
-    if (/important|critical|essential|key|crucial/i.test(contentToCheck)) return 'high';
-    if (/significant|noteworthy|relevant/i.test(contentToCheck)) return 'medium';
-    
-    // Default
     return 'low';
   }
 
@@ -135,14 +105,11 @@ export class GoogleService extends GoogleBaseService {
     this.labelsToApply = [];
     this.labelIds = [];
 
-    // Use the analyzed category if available, otherwise determine it ourselves
     let category: Category;
     if (input.category && input.category.category) {
-      // Extract main category from the detailed category (e.g., "promotion.marketing" -> "promotional")
       const categoryParts = input.category.category.split('.');
       const mainCategory = categoryParts[0];
       
-      // Map the main category to our Category type
       if (mainCategory === 'work') category = 'work';
       else if (mainCategory === 'personal') category = 'personal';
       else if (mainCategory === 'social') category = 'social';
@@ -151,11 +118,8 @@ export class GoogleService extends GoogleBaseService {
       else if (mainCategory === 'update') category = 'other';
       else category = 'unknown';
       
-      // Also add a subcategory label for more detailed organization if applicable
       if (categoryParts.length > 1 && categoryParts[1]) {
-        const subCategory = categoryParts[1];
-        const subCategoryLabel = `${this.labelMappings[category]}-${subCategory.charAt(0).toUpperCase() + subCategory.slice(1)}`;
-        await this.processLabel(subCategoryLabel);
+        await this.processLabel(this.labelMappings[category]);
       }
     } else {
       category = this.determineCategory(input);
@@ -189,85 +153,35 @@ export class GoogleService extends GoogleBaseService {
   }
 
   private generateResponse(email: EmailResponse) {
-    let response = '';
-
     const category = this.determineCategory(email);
     const urgency = this.determineUrgency(email);
-    const importance = this.determineImportance(email);
     
-    const [mainCategory, subCategory] = category.split('.');
-    const isUrgent = urgency === 'high';
-    const isImportant = importance === 'high';
+    const [mainCategory] = category.split('.');
+    // const isUrgent = urgency === 'high';
+
+    this.logger.info(`Generating response for email ${email.messageId} with category ${category} and urgency ${urgency}`)
+
+    // if(!isUrgent) {
+    //   this.logger.info(`No response needed for email ${email.messageId}`)
+    //   return null
+    // }
+
+    this.logger.info(`Generating response for email ${email.messageId} with category ${category} and urgency ${urgency}`)
 
     switch (mainCategory) {
       case 'work':
-        if (subCategory === 'task') {
-          if (isUrgent) {
-            response = `Hi,\n\nThank you for assigning me this task. I've noted this as urgent and will work on it as soon as possible.\n\nRegards, ${this.autoResponderName}`;
-          } else {
-            response = `Hi,\n\nThank you for assigning me this task. I'll review it and get back to you with updates.\n\nRegards, ${this.autoResponderName}`;
-          }
-        } else if (subCategory === 'meeting') {
-          response = `Hi,\n\nThank you for the meeting invitation. I've received it and will confirm my availability shortly.\n\nRegards, ${this.autoResponderName}`;
-        } else if (subCategory === 'update') {
-          response = `Hi,\n\nThank you for the update. I've noted the information and will review it in detail.\n\nRegards, ${this.autoResponderName}`;
-        } else {
-          // General work-related response
-          if (isUrgent) {
-            response = `Hi,\n\nThank you for your work-related email. I've noted this as urgent and will address it as soon as possible.\n\nRegards, ${this.autoResponderName}`;
-          } else {
-            response = `Hi,\n\nThank you for your work-related email. I'll review it and get back to you soon.\n\nRegards, ${this.autoResponderName}`;
-          }
-        }
-        break;
-
+        return `Hi,\n\nI'll review it and get back to you soon.\n\nRegards, ${this.autoResponderName}`;
       case 'personal':
-        if (subCategory === 'finance') {
-          response = `Hi,\n\nThank you for your message regarding financial matters. I'll read it carefully and respond when I can.\n\nBest, ${this.autoResponderName}`;
-        } else if (subCategory === 'health') {
-          response = `Hi,\n\nThank you for your health-related message. I'll give this my attention as soon as possible.\n\nBest, ${this.autoResponderName}`;
-        } else if (subCategory === 'family') {
-          response = `Hi,\n\nThanks for your family-related message! I'll read it properly and get back to you.\n\nBest, ${this.autoResponderName}`;
-        } else {
-          // General personal response
-          response = `Hi,\n\nThanks for your personal message! I'll read it properly and get back to you when I can.\n\nBest, ${this.autoResponderName}`;
-        }
-        break;
-
+        return `Hi,\n\n I appreciate you reaching out and will read it carefully when I'm able to give it my full attention. I'll get back to you as soon as I can.\n\nBest wishes,\n${this.autoResponderName}`;
       case 'social':
-        if (subCategory === 'event') {
-          response = `Hi,\n\nThanks for the event information! I'll check my schedule and let you know.\n\nBest, ${this.autoResponderName}`;
-        } else if (subCategory === 'networking') {
-          response = `Hi,\n\nI appreciate you reaching out to connect. I'll review your message and respond soon.\n\nBest, ${this.autoResponderName}`;
-        } else {
-          // General social response
-          response = `Thanks for the social update. I'll check it out soon! ${this.autoResponderName}`;
-        }
-        break;
-
       case 'promotion':
       case 'promotional':
-        // No response needed for marketing/promotional emails
-        return null;
-
-      case 'update':
-        if (subCategory === 'notification' && isImportant) {
-          response = `Thank you for the important notification. I've received it and will take appropriate action.\n\nRegards, ${this.autoResponderName}`;
-        } else {
-          // No response needed for general updates and newsletters
-          return null;
-        }
-        break;
-
       case 'spam':
-        // No response for spam
         return null;
 
       default:
-        response = `Hi,\n\nThank you for your email. I'll review it and respond appropriately.\n\nBest regards, ${this.autoResponderName}`;
+        return null;
     }
-
-    return response;
   };
 
 
@@ -282,16 +196,23 @@ export class GoogleService extends GoogleBaseService {
 
     const gmail = google.gmail({version: 'v1', auth});
 
+    const startHistoryId = await this.stateService.getLastHistoryId()
+    await this.stateService.saveLastHistoryId(historyId.toString())
+
+    if (!startHistoryId) {
+      throw new Error('No start history id found')
+    }
+
     const history = await gmail.users.history.list({
       userId: 'me',
-      startHistoryId: historyId,
+      startHistoryId,
       historyTypes: ['messageAdded']
     });
 
     const historyRecord = history.data.history?.[0]?.messagesAdded?.[0];
     const messageId = historyRecord?.message?.id;
+
     if (!messageId) {
-      this.logger.info('No new messages found.');
       throw new Error('No new messages found.');
     }
 
@@ -304,12 +225,15 @@ export class GoogleService extends GoogleBaseService {
     const parse = new ParseGmailApi();
     const email : IEmail = parse.parseMessage(data);
 
-
     if(!email.subject) {
-      this.logger.info(`No subject found for email ${messageId}`);
       throw new Error(`No subject found for email ${messageId}`);
     }
-    
+
+    if(email.from.email === this.autoResponderEmail) {
+      throw new Error(`Ignoring email from ${email.from.email}`);
+    }
+
+    this.logger.info(`Email: ${JSON.stringify(email, null, 2)}`);
     return {
       subject: email.subject,
       from: email.from.email,
@@ -321,22 +245,57 @@ export class GoogleService extends GoogleBaseService {
   }
 
   async sendEmail(emailResponse: EmailResponse) {
-    const responseText = this.generateResponse(emailResponse);
+    const message = this.generateResponse(emailResponse);
 
-    if (!responseText) {
-      const category = this.determineCategory(emailResponse);
-      this.logger.info(`No auto-response generated for this email category ${category}`);
-      throw new Error(`No auto-response generated for this email category ${category}`);
+    if (!message) {
+      throw new Error(`No auto-response generated for this email category ${emailResponse.category?.category}`);
     }
 
     const {
       messageId,
-      subject,
       from,
       threadId,
+      subject
     } = emailResponse
 
-    this.logger.info(`Sending email ${messageId} to ${from} with subject ${subject} and threadId ${threadId} and responseText ${responseText}`)
+    const auth = await this.getAuth()
+
+    const gmail = google.gmail({version: 'v1', auth});
+
+    const emailLines = [
+      `From: ${this.autoResponderEmail}`,
+      `To: ${from}`,
+      'Content-Type: text/html; charset=utf-8',
+      'MIME-Version: 1.0',
+      `References: ${messageId}`,
+      `In-Reply-To: ${messageId}`,
+      `Subject: Re: ${subject}`,
+      '',
+      message,
+    ];
+    const email = emailLines.join('\n');
+    this.logger.info(`Sending email ${JSON.stringify({
+      messageId,
+      from,
+      threadId,
+      subject,
+      message
+    }, null, 2)}`);
+    const encodedEmail = Buffer.from(email)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+
+    await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: {
+        threadId: threadId,
+        raw: encodedEmail
+      }
+    })
+
+    this.logger.info(`Email sent ${messageId} to ${from} and threadId ${threadId} and responseText ${message}`)
   }
 
   async modifyMessage(messageId: string, labelIds: string[]) {

@@ -21,8 +21,6 @@ export const handler: StepHandler<typeof config> = async (input, {emit, logger, 
   try {
     const payload = schema.parse(input)
 
-    logger.info(`Fetching email content: ${JSON.stringify(payload)}`)
-
     const {messageId, historyId} = payload
     const googleService = new GoogleService(logger, state);
     const data: EmailResponse = await googleService.getEmail(historyId.toString())
@@ -36,6 +34,6 @@ export const handler: StepHandler<typeof config> = async (input, {emit, logger, 
 
     logger.info(`Email fetch completed successfully: ${messageId}`)
   } catch (error) {
-    logger.error(`Error fetching email content ${JSON.stringify(error)}`)
+    logger.error(`Error fetching email content ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
