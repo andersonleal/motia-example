@@ -146,7 +146,7 @@ export const Node: React.FC<ApiNodeProps> = ({ data }) => {
         )}
 
         {/* Action Buttons */}
-        <div className='flex gap-2'>
+        <div className='flex gap-2 flex-col'>
           <Button 
             disabled={isLoading} 
             onClick={handleAuthRequest}

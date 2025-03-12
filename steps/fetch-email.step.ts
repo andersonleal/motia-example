@@ -12,7 +12,10 @@ export const config: EventConfig<typeof schema> = {
   name: 'Email Fetcher',
   description: 'Fetches email content from Gmail when triggered by an email received event',
   subscribes: ['gmail.email.received'],
-  emits: ['gmail.email.fetched'],
+  emits: [{
+    topic: 'gmail.email.fetched',
+    label: 'Email Fetched',
+  }],
   input: schema,
   flows: ['gmail-flow'],
 }

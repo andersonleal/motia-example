@@ -3,7 +3,10 @@ config = {
     'name': 'Email Analyzer',
     'description': 'Analyzes email content using Hugging Face models to determine category, urgency, and importance',
     'subscribes': ['gmail.email.fetched'],
-    'emits': ['gmail.email.analyzed'],
+    'emits': [{
+        'topic': 'gmail.email.analyzed',
+        'label': 'Email Analyzed',
+    }],
     'flows': ['gmail-flow']
 }
 

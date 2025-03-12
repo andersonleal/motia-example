@@ -20,7 +20,10 @@ export const config: ApiRouteConfig = {
   description: 'Receives webhook notifications from Gmail for new emails',
   path: '/api/gmail-webhook',
   method: 'POST',
-  emits: ['gmail.email.received'],
+  emits: [{
+    topic: 'gmail.email.received',
+    label: 'Email Received',
+  }],
   virtualSubscribes: ['api.gmail.webhook'],
   bodySchema: schema,
   flows: ['gmail-flow'],
