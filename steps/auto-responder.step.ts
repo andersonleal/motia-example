@@ -15,13 +15,11 @@ const inputSchema = z.object({
   }),
   urgency: z.object({
     urgency: z.string(),
-    score: z.number(),
-    factors: z.record(z.number()).optional()
+    score: z.number()
   }),
   importance: z.object({
     importance: z.string(),
-    score: z.number(),
-    factors: z.record(z.number()).optional()
+    score: z.number()
   }),
   shouldArchive: z.boolean().optional().default(false)
 })
